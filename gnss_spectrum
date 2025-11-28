@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+
+# 
+ 
+export DEVICE ARGC FILEOPT X11 SETTERM ROTATE GPLINES DEBUG DEBUGOPT SETOUTPUT
+
+thisusage(){
+  echo 
+  echo "spectrum analyzer illustrator for an U-blox GNSS receiver " 
+  echo "  author: gnss.spectrum@ma.yer.at " 
+  echo "  source: https://github.com/hans-mayer/gnssspectrum "
+  echo "  version: 1.0 - 2025 11 28 "
+  echo 
+  echo "usage: $PROGNAME [ -d DEVICE ] [ -f ] [ -x ] [ -l ] [ -Z 1|0 ] " 
+  echo "    -f 		# generate a file with the result "
+  echo "    -x		# show the result at X11 server " 
+  echo "    -Z 1|9	# debug  1 ... less, 9 ... more "
+  echo "    -d DEVICE	# default value: localhost:gpsd:/dev/serial0 " 
+  echo "    -l          # smooth funktion "
+  echo 
+  exit 0 
+}
+
+prepareplot(){
+  
+  INPUT_FILE=$1 
+  OUTPUT_FILE=$1.dat 
+  
+  # echo $0: INPUT_FILE $INPUT_FILE 
+  
+  # 1. Use 'tr' to replace all whitespace (spaces, tabs, newlines) with a single space,
+  #    then use 'tr' again to replace all spaces with newlines, putting each number on its own line.
+  # 2. Use 'awk' to add a sequential row number (index) starting from 1.
+  #    The index will be the X-value, and the number (field $1) will be the Y-value.
+  CENTER=`grep center "$INPUT_FILE" | awk '{ printf ( "%6.0f\n",  $6 / 1000 ) }'`
+  SPAN=`grep span "$INPUT_FILE" | awk '{ printf ( "%6.0f\n",  $2 / 1000 ) }'`
+  if test "$DEBUG" == y 
+    then
+      echo $PROGNAME: center $CENTER span $SPAN 
+  fi
+  
+  # u-blox-F9-HPG-1.13_InterfaceDescription_UBX-21023318.pdf
+  # f(i) = center + span * (i - 128) / 256 
+  tail +2 "$INPUT_FILE"  | tr -s '[:space:]' ' ' | tr ' ' '\n' | grep -v '^$' | \
+  awk -v CENT=$CENTER -v SPAN=$SPAN '
+  	BEGIN { i=0 ; } { print ( CENT + SPAN * ( i++ - 128 ) / 256 ) / 1000 , $1}' > "$OUTPUT_FILE"
+  
+  if test "$DEBUG" == y
+    then
+      echo 
+      head -3 $OUTPUT_FILE 
+      tail -3 $OUTPUT_FILE
+  fi
+  
+  LOW=`head -1 $OUTPUT_FILE | awk '{ print $1 }' `
+  HIGH=`tail -1 $OUTPUT_FILE | awk '{ print $1 }' `
+  
+  # echo LOW $LOW HIGH $HIGH GPLINES $GPLINES 
+
+  PLRMARGIN=4  
+  if test $FILEOPT -eq 1 
+    then 
+      SETOUTPUT="set output \"rfspectrum_$INPUT_FILE.png\""
+  fi
+  # echo SETOUTPUT $SETOUTPUT 
+
+  gnuplot << EOF
+  
+    set term x11 persist
+  
+    set title "GNSS RF spectrum\n center frequency $CENTER kHz"
+    # set xlabel "Column Index (0 to 255)"
+    set ylabel "Value"
+    
+    # Set the X range 
+    set xrange [$LOW-$PLRMARGIN:$HIGH+$PLRMARGIN]
+    set format x "%.2f" 
+    set xtics rotate by $ROTATE right 
+    set xtics $PLRMARGIN
+    set bmargin 5 
+    # set xtics 8192
+    # set bmargin 7 
+    set xtics font ", 12"
+    set style line 1 linewidth 4  
+    
+    # Style the plot
+    set grid
+    # if saved to file define next line - otherwise deactivate 
+    $SETTERM
+    $SETOUTPUT
+    # Plot the data
+    # using 1:2 means use the 1st column (index) for X and 2nd column (value) for Y
+    plot "$OUTPUT_FILE" using 1:2 $GPLINES  title "RF signal strength"
+EOF
+  
+  if test $FILEOPT -eq 1 
+    then 
+      ls -ld `pwd`/rfspectrum_$INPUT_FILE.png 
+      echo plot file name: `pwd`/rfspectrum_$INPUT_FILE.png 
+      # display  `pwd`/rfspectrum_$INPUT_FILE.png & 
+  fi
+} 
+
+PROGNAME=$0
+DEVICE=localhost:gpsd:/dev/serial0
+
+# check the arguments
+DEBUG=n
+DEBUGOPT=0 
+ARGC=0  # no remaining arguments after all options are processed 
+FILEOPT=0
+X11=0
+GPLINES="with linespoints" 
+ROTATE=90
+SETOUTPUT='' 
+LOOPCNT=0
+# go at least 1 time into the loop / there is no "do until"
+do_once=1
+while test $# -gt $ARGC -o $do_once -eq 1
+  do
+    do_once=0
+    case $1 in
+      -f ) FILEOPT=1 ; shift 
+		SETTERM='set terminal pngcairo size 800,500' 
+		ROTATE=70 ;; 
+      -x ) X11=1 ; shift 
+		SETTERM='' 
+		ROTATE=90 ;; 
+      -l ) GPLINES="with lines ls 1 smooth acsplines" ; shift ;;
+      -d ) DEVICE=$2 ; shift 2 ;; 
+      -Z ) DEBUG=y ; shift ; DEBUGOPT=$1 ; shift ;; 
+      -* ) thisusage ; exit 1 ;; 
+    esac 
+
+    if test $# -lt $ARGC
+      then
+        thisusage
+        exit 1
+    fi
+    LOOPCNT=$((LOOPCNT+1))
+    # check if we are not running into an endless loop
+    if test "$LOOPCNT" -gt 30
+      then
+        thisusage
+        exit 1
+    fi
+
+  done 
+
+if test "$DEBUGOPT" -eq 9
+  then
+    set -x
+fi
+
+if test "$DEBUG" == y
+  then
+    echo $PROGNAME : FILEOPT $FILEOPT X11 $X11 GPLINES $GPLINES DEBUG $DEBUG DEBUGOPT $DEBUGOPT 
+fi
+
+cd /tmp 
+rm -f x0* rfspectrum* > /dev/null 2>&1 
+
+ubxtool -p MON-SPAN $DEVICE | sed -n '/UBX-MON-SPAN:/,/^$/p' | grep -A 16 span | split -l 17 -d -
+
+if test "${PIPESTATUS[0]}" -ne 0 
+  then 
+    echo $0: command not found in ubxtool 
+    exit 1 
+fi
+
+if test ! -f x00
+  then 
+    echo $0: no data found 
+    exit 1 
+fi
+
+
+for FILES in x?? 
+  do 
+    prepareplot $FILES 
+  done 
+
+if test "$DEBUG" == n
+  then
+    rm x0* 
+fi 
+
+exit 0 
+
