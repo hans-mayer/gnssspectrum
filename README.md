@@ -11,19 +11,19 @@ Other prerequisites:
 
 ## usage
 
-
     spectrum analyzer illustrator for an U-blox GNSS receiver 
       author: gnss.spectrum@ma.yer.at 
       source: https://github.com/hans-mayer/gnssspectrum 
-      version: 1.0 - 2025 11 28 
-    
-    usage: ./gnss_spectrum [ -d DEVICE ] [ -f ] [ -x ] [ -l ] [ -Z 1|0 ] 
-        -f 		# generate a file with the result 
-        -x		# show the result at X11 server 
-        -Z 1|9	# debug  1 ... less, 9 ... more 
-        -d DEVICE	# default value: localhost:gpsd:/dev/serial0 
-        -l          # smooth funktion
+      version: 1.2 - 2025 12 23 
 
+    usage: /opt/iiasa/bin/gnss_spectrum [ -d DEVICE ] [ -f ] [ -x ] [ -l ] [ -Z 1|0 ] 
+        -f          # generate a file with the result 
+        -x          # show the result at X11 server 
+        -X range    # low:high value in kHz , example 1184:1260 
+        -Z 1|9      # debug  1 ... less, 9 ... more 
+        -d DEVICE   # default value: localhost:gpsd:/dev/serial0 
+        -l          # smooth funktion 
+  
 
 ## examples 
 
