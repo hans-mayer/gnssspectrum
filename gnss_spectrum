@@ -2,19 +2,20 @@
 
 # 
  
-export DEVICE ARGC FILEOPT X11 SETTERM ROTATE GPLINES DEBUG DEBUGOPT SETOUTPUT XRANGE AWK HEADER
+export DEVICE ARGC FILEOPT X11 SETTERM ROTATE GPLINES DEBUG DEBUGOPT SETOUTPUT XRANGE AWK HEADER YRANGE NOW SETYRANGE
 
 thisusage(){
   echo 
   echo "spectrum analyzer illustrator for an U-blox GNSS receiver " 
   echo "  author: gnss.spectrum@ma.yer.at " 
   echo "  source: https://github.com/hans-mayer/gnssspectrum "
-  echo "  version: 1.2 - 2025 12 23 "
+  echo "  version: 1.2 - 2025 12 25 "
   echo 
   echo "usage: $PROGNAME [ -d DEVICE ] [ -f ] [ -x ] [ -l ] [ -Z 1|0 ] " 
   echo "    -f          # generate a file with the result "
   echo "    -x          # show the result at X11 server " 
-  echo "    -X range    # low:high value in kHz , example 1184:1260 " 
+  echo "    -X range    # low:high value in kHz , example 1184:1260 , default auto " 
+  echo "    -Y range    # low:high value , example 60:170 , default auto " 
   echo "    -Z 1|9      # debug  1 ... less, 9 ... more "
   echo "    -d DEVICE   # default value: localhost:gpsd:/dev/serial0 " 
   echo "    -l          # smooth funktion "
@@ -68,6 +69,23 @@ prepareplot(){
           exit 1 
       fi    
   fi
+
+  if test -n "$YRANGE"
+    then
+      # echo  split YRANGE into 2 parts
+      YLOW=`echo $YRANGE | tr ':' ' ' | $AWK '{ print $1 }'`
+      YHIGH=`echo $YRANGE | tr ':' ' ' | $AWK '{ print $2 }'`
+      # check YRANGE low value smaller than high value
+      if $AWK -v LOW=$YLOW -v HI=$YHIGH 'BEGIN { exit !(LOW > HI) }'
+        then
+          echo
+          echo "xrange low < high, example 60:170 , current value $YRANGE "
+          # echo $YRANGE | tr ':' ' '
+          thisusage
+          exit 1
+      fi
+  fi
+
   LOW=`head -1 $OUTPUT_FILE | $AWK '{ print $1 }' `
   HIGH=`tail -1 $OUTPUT_FILE | $AWK '{ print $1 }' `
   # echo LOW $LOW HIGH $HIGH XLOW $XLOW XHIGH $XHIGH GPLINES $GPLINES 
@@ -89,7 +107,13 @@ prepareplot(){
   fi
   # echo SETOUTPUT $SETOUTPUT 
 
-  HEADER="\nRF signal strength \n `date '+%H:%M:%S'` "
+  if test -n "$YRANGE" 
+    then
+      SETYRANGE=`echo 'set yrange '"[$YRANGE]" `
+  fi
+
+  HEADER="\nRF signal strength \n $NOW "
+
   gnuplot << EOF
   
     set term x11 persist
@@ -100,6 +124,7 @@ prepareplot(){
     
     # Set the X range 
     set xrange [$LOW-$PLRMARGIN:$HIGH+$PLRMARGIN]
+    $SETYRANGE 
     set format x "%.2f" 
     set xtics rotate by $ROTATE right 
     set xtics $PLRMARGIN
@@ -141,6 +166,7 @@ GPLINES="with linespoints"
 ROTATE=90
 SETOUTPUT='' 
 LOOPCNT=0
+NOW=`date '+%H:%M:%S'`
 
 # go at least 1 time into the loop / there is no "do until"
 do_once=1
@@ -155,6 +181,7 @@ while test $# -gt $ARGC -o $do_once -eq 1
 		SETTERM='' 
 		ROTATE=90 ;; 
       -X ) XRANGE="$2" ; shift ; shift ;; 
+      -Y ) YRANGE="$2" ; shift ; shift ;; 
       -l ) GPLINES="with lines ls 1 smooth acsplines" ; shift ;;
       -d ) DEVICE=$2 ; shift 2 ;; 
       -Z ) DEBUG=y ; shift ; DEBUGOPT=$1 ; shift ;; 
