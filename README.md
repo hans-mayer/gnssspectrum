@@ -14,13 +14,14 @@ Other prerequisites:
     spectrum analyzer illustrator for an U-blox GNSS receiver 
       author: gnss.spectrum@ma.yer.at 
       source: https://github.com/hans-mayer/gnssspectrum 
-      version: 1.2 - 2025 12 25 
+      version: 1.3 - 2025 12 25 
     
-    usage: /opt/iiasa/bin/gnss_spectrum [ -d DEVICE ] [ -f ] [ -x ] [ -l ] [ -Z 1|0 ] 
-        -f          # generate a file with the result 
+    usage: /opt/iiasa/bin/gnss_spectrum [ -d DEVICE ] [ -f ] [ -p PREFIX ] [ -x ] [ -l ] [ -Z 1|0 ] [ -X RANGE ] [ -Y RANGE ] 
+        -f          # generate a file with the result in /tmp 
+        -p prefix   # generate a result file with specified prefix in /tmp 
         -x          # show the result at X11 server 
-        -X range    # low:high value in kHz , example 1184:1260 , default auto 
-        -Y range    # low:high value , example 60:170 , default auto 
+        -X range    # low:high value in kHz , example 1184:1260 , default auto range 
+        -Y range    # low:high value , example 60:170 , default auto range 
         -Z 1|9      # debug  1 ... less, 9 ... more 
         -d DEVICE   # default value: localhost:gpsd:/dev/serial0 
         -l          # smooth funktion 

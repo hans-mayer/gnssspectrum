@@ -2,20 +2,21 @@
 
 # 
  
-export DEVICE ARGC FILEOPT X11 SETTERM ROTATE GPLINES DEBUG DEBUGOPT SETOUTPUT XRANGE AWK HEADER YRANGE NOW SETYRANGE
+export DEVICE ARGC FILEOPT X11 SETTERM ROTATE GPLINES DEBUG DEBUGOPT SETOUTPUT XRANGE AWK HEADER YRANGE NOW SETYRANGE PREFIX SUFFIX
 
 thisusage(){
   echo 
   echo "spectrum analyzer illustrator for an U-blox GNSS receiver " 
   echo "  author: gnss.spectrum@ma.yer.at " 
   echo "  source: https://github.com/hans-mayer/gnssspectrum "
-  echo "  version: 1.2 - 2025 12 25 "
+  echo "  version: 1.3 - 2025 12 25 "
   echo 
-  echo "usage: $PROGNAME [ -d DEVICE ] [ -f ] [ -x ] [ -l ] [ -Z 1|0 ] " 
-  echo "    -f          # generate a file with the result "
+  echo "usage: $PROGNAME [ -d DEVICE ] [ -f ] [ -p PREFIX ] [ -x ] [ -l ] [ -Z 1|0 ] [ -X RANGE ] [ -Y RANGE ] " 
+  echo "    -f          # generate a file with the result in /tmp "
+  echo "    -p prefix   # generate a result file with specified prefix in /tmp "
   echo "    -x          # show the result at X11 server " 
-  echo "    -X range    # low:high value in kHz , example 1184:1260 , default auto " 
-  echo "    -Y range    # low:high value , example 60:170 , default auto " 
+  echo "    -X range    # low:high value in kHz , example 1184:1260 , default auto range " 
+  echo "    -Y range    # low:high value , example 60:170 , default auto range " 
   echo "    -Z 1|9      # debug  1 ... less, 9 ... more "
   echo "    -d DEVICE   # default value: localhost:gpsd:/dev/serial0 " 
   echo "    -l          # smooth funktion "
@@ -103,7 +104,7 @@ prepareplot(){
   PLRMARGIN=4  
   if test $FILEOPT -eq 1 
     then 
-      SETOUTPUT="set output \"rfspectrum_$INPUT_FILE.png\""
+      SETOUTPUT="set output \"${PREFIX}_$INPUT_FILE.png\""
   fi
   # echo SETOUTPUT $SETOUTPUT 
 
@@ -146,9 +147,9 @@ EOF
   
   if test $FILEOPT -eq 1 
     then 
-      ls -ld `pwd`/rfspectrum_$INPUT_FILE.png 
-      echo plot file name: `pwd`/rfspectrum_$INPUT_FILE.png 
-      # display  `pwd`/rfspectrum_$INPUT_FILE.png & 
+      # ls -ld `pwd`/${PREFIX}_$INPUT_FILE.png 
+      echo plot file name: `pwd`/${PREFIX}_$INPUT_FILE.png 
+      # display  `pwd`/${PREFIX}_$INPUT_FILE.png & 
   fi
 } 
 
@@ -167,6 +168,8 @@ ROTATE=90
 SETOUTPUT='' 
 LOOPCNT=0
 NOW=`date '+%H:%M:%S'`
+PREFIX=rfspectrum
+SUFFIX=plot
 
 # go at least 1 time into the loop / there is no "do until"
 do_once=1
@@ -185,6 +188,10 @@ while test $# -gt $ARGC -o $do_once -eq 1
       -l ) GPLINES="with lines ls 1 smooth acsplines" ; shift ;;
       -d ) DEVICE=$2 ; shift 2 ;; 
       -Z ) DEBUG=y ; shift ; DEBUGOPT=$1 ; shift ;; 
+      -p ) FILEOPT=1 
+		SETTERM='set terminal pngcairo size 800,500'
+                ROTATE=70 
+		PREFIX=$2 ; shift ; shift ;; 
       -* ) thisusage ; exit 1 ;; 
     esac 
 
@@ -214,9 +221,9 @@ if test "$DEBUG" == y
 fi
 
 cd /tmp 
-rm -f x0* rfspectrum* > /dev/null 2>&1 
+rm -f ${SUFFIX}0* rfspectrum* > /dev/null 2>&1 
 
-ubxtool -p MON-SPAN $DEVICE | sed -n '/UBX-MON-SPAN:/,/^$/p' | grep -A 16 span | split -l 17 -d -
+ubxtool -p MON-SPAN $DEVICE | sed -n '/UBX-MON-SPAN:/,/^$/p' | grep -A 16 span | split -l 17 -d - $SUFFIX 
 
 if test "${PIPESTATUS[0]}" -ne 0 
   then 
@@ -224,21 +231,21 @@ if test "${PIPESTATUS[0]}" -ne 0
     exit 1 
 fi
 
-if test ! -f x00
+if test ! -f ${SUFFIX}00
   then 
     echo $0: no data found 
     exit 1 
 fi
 
 
-for FILES in x?? 
+for FILES in ${SUFFIX}??
   do 
     prepareplot $FILES 
   done 
 
 if test "$DEBUG" == n
   then
-    rm x0* 
+    rm ${SUFFIX}0? 
 fi 
 
 exit 0 
